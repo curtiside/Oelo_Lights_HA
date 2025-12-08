@@ -29,6 +29,9 @@ Option 2: Using Docker Compose Directly
     docker-compose logs -f
     docker-compose down
 
+Note: The integration code is in the repo's custom_components/ directory, but Home Assistant
+needs it in config/custom_components/ (mounted volume). The copy step makes it available.
+
 Access Home Assistant
 ---------------------
 - URL: http://localhost:8123
@@ -36,38 +39,103 @@ Access Home Assistant
 
 Manual Testing Steps
 --------------------
-1. Install Integration:
+1. Install Integration Code (choose one method):
+
+   Option A: HACS Installation (Recommended - Auto-Updates)
+   - Install HACS if not already installed
+   - Go to HACS → Integrations → Custom Repositories
+   - Add repository: https://github.com/curtiside/oelo_lights_ha
+   - Category: Integration
+   - Search for "Oelo Lights" in HACS and install
+   - Restart Home Assistant
+
+   Option B: Manual Installation (Docker Testing)
+   - Code is in repo's custom_components/oelo_lights/ but HA needs it in config/
+   - Copy to config: cp -r custom_components/oelo_lights config/custom_components/
+   - Restart container: docker-compose restart
+   
+   Option C: Manual Installation (Production Home Assistant)
+   - Clone repository: git clone https://github.com/curtiside/oelo_lights_ha.git
+   - Copy integration: cp -r oelo_lights_ha/custom_components/oelo_lights /config/custom_components/
+   - Restart Home Assistant
+
+2. Add Integration in Home Assistant:
    - Go to Settings → Devices & Services
    - Click "Add Integration"
    - Search for "Oelo Lights"
    - Enter your controller IP address
+   - You should see 6 zones created (Zone 1 through Zone 6)
 
-2. Test Basic Functionality:
-   - Verify entities are created
-   - Test turning lights on/off
-   - Test color changes
+3. Test Basic Functionality:
+   - Go to the integration page (Settings → Devices & Services → Oelo Lights)
+   - Click on any zone (e.g., "Zone 1") to open the light entity
+   - Test turning lights on/off using the toggle
+   - Test color changes using the color picker
+   - Test brightness using the brightness slider
+   - Note: Effect dropdown will be empty until you capture effects (see step 4)
 
-3. Test Effect Capture:
-   - Set a pattern on your Oelo controller (zone must be ON)
-   - Use Developer Tools → Services
-   - Call oelo_lights.capture_effect with:
-     - entity_id: light.oelo_lights_zone_1
-     - effect_name: (optional) "My Test Pattern"
-   - Verify effect appears in effect list
+4. Test Effect Capture (Choose one method):
 
-4. Test Effect Rename:
-   - Use Developer Tools → Services
-   - Call oelo_lights.rename_effect with:
-     - entity_id: light.oelo_lights_zone_1
-     - effect_name: "My Test Pattern"
-     - new_name: "Renamed Test Pattern"
-   - Verify effect name changes in effect list
+   Option A: Custom Lovelace Card (Recommended - Better UI)
+   - Card file is automatically copied to www/ during integration setup
+   - Resource registration is attempted automatically (may require manual step)
+   - If card doesn't appear, manually add resource:
+     - Settings → Dashboards → Resources → + Add Resource
+     - URL: /local/oelo-patterns-card-simple.js
+     - Type: JavaScript Module → Create
+   - Add card to dashboard: Edit dashboard → + Add Card → Manual
+   - Configuration:
+     type: custom:oelo-patterns-card
+     entity: light.oelo_lights_zone_1
+     title: My Oelo Patterns
+   - Set pattern on Oelo controller (zone must be ON)
+   - Click "Capture Pattern" button in card
+   - Enter name: "My Test Pattern"
+   - Pattern appears in card list
 
-5. Test Effect Application:
-   - Select the renamed effect from the dropdown
-   - Or use service oelo_lights.apply_effect with:
-     - entity_id: light.oelo_lights_zone_1
-     - effect_name: "Renamed Test Pattern"
+   Option B: Developer Tools (For Testing)
+   - First, set a pattern on your Oelo controller (zone must be ON)
+   - Go to: Settings → Developer Tools → Services tab
+   - Service: oelo_lights.capture_effect
+   - Target: entity_id: light.oelo_lights_zone_1
+   - Service Data (YAML): effect_name: "My Test Pattern"
+   - Click "Call Service"
+   - Verify: Zone 1 entity page → Effect dropdown shows "My Test Pattern"
+
+5. Test Effect Rename (Choose one method):
+
+   Option A: Custom Lovelace Card
+   - Click pencil icon (✏️) next to "My Test Pattern" in card
+   - Enter new name: "Renamed Test Pattern"
+   - Pattern updates in card
+
+   Option B: Developer Tools
+   - Go to: Settings → Developer Tools → Services tab
+   - Service: oelo_lights.rename_effect
+   - Target: entity_id: light.oelo_lights_zone_1
+   - Service Data (YAML):
+     effect_name: "My Test Pattern"
+     new_name: "Renamed Test Pattern"
+   - Click "Call Service"
+   - Verify: Zone 1 entity page → Effect dropdown shows "Renamed Test Pattern"
+
+6. Test Effect Application (Choose one method):
+
+   Option A: Effect Dropdown (Easiest)
+   - Go to Zone 1 entity page
+   - Select "Renamed Test Pattern" from Effect dropdown
+   - Lights change immediately
+
+   Option B: Custom Lovelace Card
+   - Click play button (▶) next to pattern in card
+   - Pattern applies to zone
+
+   Option C: Developer Tools
+   - Go to Developer Tools → Services
+   - Service: oelo_lights.apply_effect
+   - Target: entity_id: light.oelo_lights_zone_1
+   - Service Data: effect_name: "Renamed Test Pattern"
+   - Click "Call Service"
    - Verify lights change to that effect
 
 Viewing Logs
