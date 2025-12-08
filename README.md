@@ -18,7 +18,7 @@ head -200 custom_components/oelo_lights/services.py
 
 1. Install [HACS](https://hacs.xyz/docs/setup/download) if needed
 2. HACS → Integrations → Custom repositories → Add `https://github.com/curtiside/oelo_lights_ha` (Category: Integration)
-3. Search "Oelo Lights" → Download → Restart
+3. Search "oleo_lights_ha" → Download → Restart
 
 ### Manual
 
@@ -34,7 +34,7 @@ cp -r oelo_lights_ha/custom_components/oelo_lights /config/custom_components/
 
 ### Initial Setup
 
-Settings → Devices & Services → Add Integration → Search "Oelo Lights" → Enter controller IP address → Submit.
+Settings → Devices & Services → Add Integration → Search "oleo_lights_ha" → Enter controller IP address → Submit.
 
 **Required:**
 - **Controller IP Address** - IPv4 address of Oelo controller on local network
@@ -43,7 +43,7 @@ Integration validates IP and creates entities for all zones (1-6) with default s
 
 ### Configure Options (After Setup)
 
-Settings → Devices & Services → Oelo Lights → Configure (or click integration → Configure button).
+Settings → Devices & Services → oleo_lights_ha → Configure (or click integration → Configure button).
 
 **Note:** Changing zones requires restart. Other options take effect immediately.
 
@@ -99,25 +99,19 @@ If validation fails, error shown and integration won't initialize until valid IP
 
 Each zone is a light entity (`light.oelo_lights_zone_1`, etc.). Control via UI, automations, scripts.
 
+### Accessing Pattern Management
+
+**1. Dashboard Card** - Auto-added to dashboard. Buttons: Capture, Apply, Rename, Delete.
+
+**2. Light Entity** - Click zone entity → Effect dropdown (shows captured patterns only).
+
+**3. Developer Tools → Services** - Search `oelo_lights` services for automations/scripts.
+
 ### Effect Workflow
 
 1. **Create pattern in Oelo app** (zone must be ON)
-2. **Capture in HA:**
-   ```yaml
-   service: oelo_lights.capture_effect
-   data:
-     entity_id: light.oelo_lights_zone_1
-     effect_name: "My Effect"  # Optional
-   ```
-3. **Apply to any zone:**
-   - UI: Select zone → Effect dropdown → Choose effect
-   - Service:
-     ```yaml
-     service: oelo_lights.apply_effect
-     data:
-       entity_id: light.oelo_lights_zone_1
-       effect_name: "My Effect"
-     ```
+2. **Capture**: Dashboard card "Capture Pattern" button or `oelo_lights.capture_effect` service
+3. **Apply**: Dashboard card "Apply" button, Effect dropdown, or `oelo_lights.apply_effect` service
 
 ### Services
 
@@ -329,3 +323,7 @@ Issues/PRs welcome: https://github.com/curtiside/oelo_lights_ha
 ## License
 
 MIT License
+
+## Acknowledgments
+
+Built upon [Cinegration/Oelo_Lights_HA](https://github.com/Cinegration/Oelo_Lights_HA) and extended with pattern capture/storage/management, spotlight plan support, and Hubitat driver feature parity.
