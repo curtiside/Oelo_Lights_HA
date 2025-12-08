@@ -1,13 +1,13 @@
 {
   "domain": "oelo_lights",
   "name": "Oelo Lights",
-  "codeowners": ["@Cinegration"],
+  "codeowners": ["@curtiside"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://web.api.cindev.com/oelo/docs/integration.pdf",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/Cinegration/Oelo_Lights_HA/issues",
+  "issue_tracker": "https://github.com/curtiside/oelo_lights_ha/issues",
   "requirements": [],
   "version": "2.0.0"
 }

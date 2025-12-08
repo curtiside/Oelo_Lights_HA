@@ -35,7 +35,7 @@ This custom integration allows you to control your Oelo Lights system directly f
 2. **Add this repository to HACS:**
    - Go to **HACS > Integrations**
    - Click the three dots menu (top right) → **Custom repositories**
-   - Add repository: `https://github.com/Cinegration/Oelo_Lights_HA`
+   - Add repository: `https://github.com/curtiside/oelo_lights_ha`
    - Category: **Integration**
    - Click **Add**
 
@@ -52,14 +52,14 @@ This custom integration allows you to control your Oelo Lights system directly f
 
 1. **Clone or download this repository:**
    ```bash
-   git clone https://github.com/Cinegration/Oelo_Lights_HA.git
+   git clone https://github.com/curtiside/oelo_lights_ha.git
    # Or download and extract the ZIP file
    ```
 
 2. **Copy the integration folder:**
    ```bash
    # On Linux/Mac:
-   cp -r Oelo_Lights_HA/custom_components/oelo_lights /config/custom_components/
+   cp -r oelo_lights_ha/custom_components/oelo_lights /config/custom_components/
    
    # On Windows:
    # Copy the 'oelo_lights' folder from 'custom_components' to your Home Assistant 'custom_components' directory
@@ -74,7 +74,7 @@ This custom integration allows you to control your Oelo Lights system directly f
    - The integration should appear in **Settings > Devices & Services > Integrations**
 
 5. **To update manually:**
-   - Pull latest changes: `cd Oelo_Lights_HA && git pull`
+   - Pull latest changes: `cd oelo_lights_ha && git pull`
    - Copy updated files to `/config/custom_components/oelo_lights/`
    - Restart Home Assistant
 
@@ -259,7 +259,7 @@ data:
 ## Contributing
 
 Pull requests, bug reports, and feature requests are welcome!  
-Please open an issue or PR on [GitHub](https://github.com/Cinegration/Oelo_Lights_HA).
+Please open an issue or PR on [GitHub](https://github.com/curtiside/oelo_lights_ha).
 
 ---
 
