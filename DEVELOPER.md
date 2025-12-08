@@ -35,6 +35,12 @@ See test file docstrings for prerequisites and detailed usage.
 
 ## Development Environment
 
+### Updating Integration Code
+
+After making code changes:
+1. **HACS**: Redownload integration (HACS → Integrations → oleo_lights_ha → Redownload)
+2. **Restart** Home Assistant or **Reload** integration (Settings → Devices & Services → oleo_lights_ha → Reload)
+
 ### Docker Setup
 
 Uses Docker Compose for local HA testing. See `docker-compose.yml` for configuration.
