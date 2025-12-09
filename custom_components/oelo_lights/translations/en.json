@@ -25,6 +25,64 @@
     "abort": {
       "already_configured": "This oelo_lights_ha controller (based on IP address) is already configured.",
       "reconfigure_successful": "Reconfiguration successful."
+    },
+    "options": {
+      "step": {
+        "init": {
+          "title": "Basic Settings",
+          "description": "Configure zones and polling settings.",
+          "data": {
+            "zones": "Zones",
+            "poll_interval": "Poll Interval (seconds)",
+            "auto_poll": "Enable Auto Polling"
+          },
+          "data_description": {
+            "zones": "Select which zones to control (1-6).",
+            "poll_interval": "How often to poll controller status (10-3600 seconds).",
+            "auto_poll": "Automatically poll controller status."
+          }
+        },
+        "spotlight": {
+          "title": "Spotlight Plan Settings",
+          "description": "Configure spotlight plan LED settings.\n\nCurrent LED indices: {current_lights}",
+          "data": {
+            "max_leds": "Maximum LEDs per Zone",
+            "spotlight_plan_lights": "Spotlight Plan Lights"
+          },
+          "data_description": {
+            "max_leds": "Maximum number of LEDs in each zone (1-500).",
+            "spotlight_plan_lights": "Comma-delimited list of LED indices to turn on for spotlight plans (e.g., '1,2,3,4')."
+          }
+        },
+        "verification": {
+          "title": "Command Verification",
+          "description": "Configure command verification settings.",
+          "data": {
+            "verify_commands": "Verify Commands",
+            "verification_retries": "Verification Retries",
+            "verification_delay": "Verification Delay (seconds)",
+            "verification_timeout": "Verification Timeout (seconds)"
+          },
+          "data_description": {
+            "verify_commands": "Verify commands by checking controller status after sending.",
+            "verification_retries": "Number of times to retry verification (1-10).",
+            "verification_delay": "Seconds to wait between verification attempts (1-10).",
+            "verification_timeout": "Maximum time to wait for verification (10-120 seconds)."
+          }
+        },
+        "advanced": {
+          "title": "Advanced Settings",
+          "description": "Configure advanced settings.",
+          "data": {
+            "command_timeout": "Command Timeout (seconds)",
+            "debug_logging": "Enable Debug Logging"
+          },
+          "data_description": {
+            "command_timeout": "HTTP request timeout (5-30 seconds).",
+            "debug_logging": "Enable detailed logging for troubleshooting."
+          }
+        }
+      }
     }
   }
 }

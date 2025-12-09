@@ -1,4 +1,4 @@
-.PHONY: help setup start stop restart logs clean test
+.PHONY: help setup start stop restart logs clean test test-all
 
 help:
 	@echo "Oelo Lights HA Testing Makefile"
@@ -11,6 +11,7 @@ help:
 	@echo "  make logs     - View Home Assistant logs (follow mode)"
 	@echo "  make clean    - Remove container and config directory"
 	@echo "  make test     - Run quick test (start, wait, check logs)"
+	@echo "  make test-all - Run complete test suite (all tests in order)"
 
 setup:
 	@echo "Setting up test environment..."
@@ -71,3 +72,19 @@ test:
 	@echo "Checking logs for errors..."
 	@docker-compose logs --tail 50 | grep -i error || echo "No errors found in recent logs"
 	@echo "Test complete! Check http://localhost:8123"
+
+install-chromedriver:
+	@echo "Installing ChromeDriver in container..."
+	@docker-compose exec -T homeassistant bash -c "apt-get update && apt-get install -y wget gnupg unzip chromium chromium-driver || apk add --no-cache chromium chromium-chromedriver || true"
+	@docker-compose exec -T homeassistant bash -c "command -v chromedriver || command -v chromium-driver || echo 'ChromeDriver check'"
+	@echo "✓ ChromeDriver installation attempted"
+
+test-all:
+	@echo "Running complete test suite..."
+	@make setup
+	@make start
+	@echo "Waiting for Home Assistant to be ready..."
+	@sleep 60
+	@echo "Installing ChromeDriver for UI tests..."
+	@docker-compose exec -T homeassistant bash -c "apt-get update -qq && apt-get install -y -qq chromium chromium-driver 2>&1 | grep -v '^WARNING' || apk add --no-cache chromium chromium-chromedriver 2>&1 | grep -v '^WARNING' || echo 'ChromeDriver install attempted'" || true
+	@python3 test/run_all_tests.py

@@ -115,17 +115,17 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
             )
             
             if not resource_exists:
-                await resources.async_create_item({
+                result = await resources.async_create_item({
                     "type": resource_type,
                     "url": resource_url,
                 })
-                _LOGGER.info("✓ Lovelace card resource registered automatically")
+                _LOGGER.info("✓ Lovelace card resource registered automatically: %s", result)
                 return
             else:
-                _LOGGER.debug("Lovelace card resource already registered")
+                _LOGGER.info("Lovelace card resource already registered")
                 return
         except Exception as e:
-            _LOGGER.debug("ResourceStorage method failed: %s", e)
+            _LOGGER.warning("ResourceStorage method failed: %s", e, exc_info=True)
         
         # Method 2: Use frontend component to load globally (works without resource registration)
         try:
@@ -134,19 +134,20 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
             add_extra_js_url(hass, resource_url, es5=False)
             _LOGGER.info("✓ Lovelace card loaded automatically via frontend component")
             return
-        except ImportError:
+        except ImportError as e:
             # Frontend component not available
-            pass
+            _LOGGER.debug("Frontend component not available: %s", e)
         except Exception as e:
-            _LOGGER.debug("Frontend component method failed: %s", e)
+            _LOGGER.warning("Frontend component method failed: %s", e, exc_info=True)
         
-        # If all methods fail, log instructions
-        _LOGGER.warning("Could not auto-register Lovelace resource. Add manually: Settings → Dashboards → Resources → URL: %s, Type: %s", resource_url, resource_type)
+        # If all methods fail, log instructions with full error details
+        _LOGGER.error("Could not auto-register Lovelace resource after trying all methods. Add manually: Settings → Dashboards → Resources → URL: %s, Type: %s", resource_url, resource_type)
+        _LOGGER.error("This is required for the pattern management card to work. Check logs above for specific errors.")
             
     except ImportError as e:
-        _LOGGER.warning("Lovelace API not available: %s. Add resource manually: Settings → Dashboards → Resources", e)
+        _LOGGER.error("Lovelace API not available: %s. Add resource manually: Settings → Dashboards → Resources", e, exc_info=True)
     except Exception as e:
-        _LOGGER.warning("Could not register Lovelace resource: %s. Add manually: Settings → Dashboards → Resources", e)
+        _LOGGER.error("Could not register Lovelace resource: %s. Add manually: Settings → Dashboards → Resources", e, exc_info=True)
 
 async def _add_card_to_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Try to automatically add pattern management card to dashboard."""
@@ -174,92 +175,156 @@ async def _add_card_to_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> Non
         # Try to access Lovelace config storage
         try:
             from homeassistant.components.lovelace.dashboard import LovelaceStorage
+            from homeassistant.components.lovelace.const import ConfigNotFound
             
             # Try to get dashboard storage
+            storage = LovelaceStorage(hass, None)
+            
             try:
-                from homeassistant.components.lovelace.const import ConfigNotFound
-                storage = LovelaceStorage(hass, None)
-                
-                try:
-                    config = await storage.async_load(force=False)
-                except ConfigNotFound:
-                    # Dashboard doesn't exist yet - create it
-                    _LOGGER.info("Dashboard config not found, creating new dashboard with pattern management card")
-                    config = {"views": []}
-                
-                if not config:
-                    _LOGGER.warning("Dashboard config is None - cannot add pattern management card")
-                    return
-                
-                if not isinstance(config, dict):
-                    _LOGGER.warning("Dashboard config is not a dict (type: %s) - cannot add pattern management card", type(config))
-                    return
-                
-                views = config.get("views", [])
-                if not views:
-                    _LOGGER.info("No views found, creating default view")
-                    views = [{"title": "Home", "path": "home", "cards": []}]
-                
-                # Check if pattern card exists, or if there's an old zones card to replace
-                pattern_card_exists = False
-                zones_card_index = None
-                zones_card_view = None
-                
-                for view_idx, view in enumerate(views):
-                    cards = view.get("cards", [])
-                    for card_idx, card in enumerate(cards):
-                        if card.get("type") == "custom:oelo-patterns-card":
-                            pattern_card_exists = True
-                            _LOGGER.info("Pattern management card already exists in view %d", view_idx)
-                            break
-                        # Check for old zones card (entities card showing zones)
-                        if card.get("type") == "entities":
-                            entities = card.get("entities", [])
-                            if isinstance(entities, list):
-                                entity_ids = [str(e).lower() for e in entities]
-                                if any("oleo" in eid or DOMAIN in eid for eid in entity_ids):
-                                    zones_card_index = card_idx
-                                    zones_card_view = view_idx
-                                    _LOGGER.info("Found existing zones card at view %d, card %d", view_idx, card_idx)
-                    if pattern_card_exists:
-                        break
-                
-                if not pattern_card_exists:
-                    card_config = {
-                        "type": "custom:oelo-patterns-card",
-                        "entity": entity_id,
-                        "title": "Oelo Patterns"
-                    }
-                    
-                    # Replace old zones card if found, otherwise add to first view
-                    if zones_card_view is not None and zones_card_index is not None:
-                        views[zones_card_view]["cards"][zones_card_index] = card_config
-                        _LOGGER.info("✓ Pattern management card replaced old zones card in view %d", zones_card_view)
-                    else:
-                        # Add to first view (Overview)
-                        if "cards" not in views[0]:
-                            views[0]["cards"] = []
-                        views[0]["cards"].append(card_config)
-                        _LOGGER.info("✓ Pattern management card added to Overview dashboard (view 0)")
-                    
-                    config["views"] = views
-                    await storage.async_save(config)
-                    _LOGGER.info("✓ Dashboard config saved successfully - pattern management card should be visible")
-                    return
+                config = await storage.async_load(force=False)
+            except ConfigNotFound:
+                # Dashboard doesn't exist yet - create it
+                _LOGGER.info("Dashboard config not found, creating new dashboard with pattern management card")
+                config = {"views": []}
+            
+            if not config:
+                _LOGGER.warning("Dashboard config is None - cannot add pattern management card")
+                return
+            
+            if not isinstance(config, dict):
+                _LOGGER.warning("Dashboard config is not a dict (type: %s) - cannot add pattern management card", type(config))
+                return
+            
+            # Handle nested config structure (data.config)
+            actual_config = config
+            if "data" in config and isinstance(config["data"], dict):
+                if "config" in config["data"]:
+                    actual_config = config["data"]["config"]
+                    _LOGGER.debug("Found nested config structure: data.config")
                 else:
-                    _LOGGER.debug("Pattern management card already exists in dashboard")
-                    return
-            except Exception as e:
-                _LOGGER.error("Failed to access dashboard storage: %s", e, exc_info=True)
-                _LOGGER.warning("Pattern management card NOT added - check Home Assistant logs for details")
+                    actual_config = config["data"]
+                    _LOGGER.debug("Found nested config structure: data")
+            
+            # Check if using original-states strategy (auto-generated dashboard)
+            strategy = actual_config.get("strategy", {})
+            if isinstance(strategy, dict) and strategy.get("type") == "original-states":
+                _LOGGER.info("Dashboard uses original-states strategy - switching to YAML mode to add card")
+                # Switch to YAML mode by removing strategy and adding views
+                actual_config.pop("strategy", None)
+                actual_config["views"] = []
+                # Update the config structure back
+                if "data" in config and "config" in config["data"]:
+                    config["data"]["config"] = actual_config
+                elif "data" in config:
+                    config["data"] = actual_config
+                else:
+                    config = actual_config
+            
+            views = actual_config.get("views", [])
+            if not views:
+                _LOGGER.info("No views found, creating default view")
+                views = [{"title": "Home", "path": "home", "cards": []}]
+                actual_config["views"] = views
+                # Update back to main config
+                if "data" in config and "config" in config["data"]:
+                    config["data"]["config"] = actual_config
+                elif "data" in config:
+                    config["data"] = actual_config
+                else:
+                    config = actual_config
+            
+            # Check if pattern card exists, or if there's an old zones card to replace
+            pattern_card_exists = False
+            zones_card_index = None
+            zones_card_view = None
+            
+            for view_idx, view in enumerate(views):
+                cards = view.get("cards", [])
+                for card_idx, card in enumerate(cards):
+                    if card.get("type") == "custom:oelo-patterns-card":
+                        pattern_card_exists = True
+                        _LOGGER.info("Pattern management card already exists in view %d", view_idx)
+                        break
+                    # Check for old zones card (entities card showing zones)
+                    if card.get("type") == "entities":
+                        entities = card.get("entities", [])
+                        if isinstance(entities, list):
+                            entity_ids = [str(e).lower() for e in entities]
+                            if any("oleo" in eid or DOMAIN in eid for eid in entity_ids):
+                                zones_card_index = card_idx
+                                zones_card_view = view_idx
+                                _LOGGER.info("Found existing zones card at view %d, card %d", view_idx, card_idx)
+                if pattern_card_exists:
+                    break
+            
+            if not pattern_card_exists:
+                card_config = {
+                    "type": "custom:oelo-patterns-card",
+                    "entity": entity_id,
+                    "title": "Oelo Patterns"
+                }
+                
+                # Replace old zones card if found, otherwise add to first view
+                if zones_card_view is not None and zones_card_index is not None:
+                    views[zones_card_view]["cards"][zones_card_index] = card_config
+                    _LOGGER.info("✓ Pattern management card replaced old zones card in view %d", zones_card_view)
+                else:
+                    # Add to first view (Overview)
+                    if "cards" not in views[0]:
+                        views[0]["cards"] = []
+                    views[0]["cards"].append(card_config)
+                    _LOGGER.info("✓ Pattern management card added to Overview dashboard (view 0)")
+                
+                # Update views in the correct config structure
+                actual_config["views"] = views
+                # Update back to main config structure
+                if "data" in config and "config" in config["data"]:
+                    config["data"]["config"] = actual_config
+                elif "data" in config:
+                    config["data"] = actual_config
+                else:
+                    config["views"] = views
+                
+                _LOGGER.debug("Saving config structure: %s", json.dumps(config, indent=2)[:200])
+                await storage.async_save(config)
+                _LOGGER.info("✓ Dashboard config saved successfully - pattern management card should be visible")
+                return
+            else:
+                _LOGGER.debug("Pattern management card already exists in dashboard")
                 return
         except ImportError as e:
             _LOGGER.error("Lovelace storage API not available: %s", e)
             _LOGGER.warning("Pattern management card NOT added - Lovelace storage API import failed")
             return
-    except Exception as e:
-        _LOGGER.error("Failed to add pattern management card to dashboard: %s", e, exc_info=True)
-        _LOGGER.warning("Pattern management card NOT added - check Home Assistant logs for error details")
+        except Exception as e:
+            # Catch any other exceptions (including ConfigNotFound if not caught above)
+            try:
+                from homeassistant.components.lovelace.const import ConfigNotFound
+                from homeassistant.components.lovelace.dashboard import LovelaceStorage
+                if isinstance(e, ConfigNotFound):
+                    # Dashboard doesn't exist - create it
+                    _LOGGER.info("Dashboard config not found (outer handler), creating new dashboard")
+                    try:
+                        storage = LovelaceStorage(hass, None)
+                        config = {"views": [{"title": "Home", "path": "home", "cards": []}]}
+                        card_config = {
+                            "type": "custom:oelo-patterns-card",
+                            "entity": entity_id,
+                            "title": "Oelo Patterns"
+                        }
+                        config["views"][0]["cards"] = [card_config]
+                        await storage.async_save(config)
+                        _LOGGER.info("✓ Pattern management card added to new dashboard")
+                        return
+                    except Exception as e2:
+                        _LOGGER.error("Failed to create dashboard with card: %s", e2, exc_info=True)
+            except ImportError:
+                pass  # ConfigNotFound not available
+            _LOGGER.error("Failed to add pattern management card to dashboard: %s", e, exc_info=True)
+            _LOGGER.warning("Pattern management card NOT added - check Home Assistant logs for error details")
+    except Exception as outer_e:
+        _LOGGER.error("Unexpected error in _add_card_to_dashboard: %s", outer_e, exc_info=True)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

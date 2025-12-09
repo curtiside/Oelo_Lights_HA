@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   homeassistant:
     container_name: ha-test
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
       - ./config:/config
+      - ./custom_components:/config/custom_components:ro
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     privileged: true
@@ -14,12 +13,31 @@ services:
       - TZ=${TZ:-America/New_York}
     ports:
       - "8123:8123"
-    # Uncomment below if network_mode: host doesn't work on your system
-    # network_mode: bridge
-    # networks:
-    #   - ha-network
 
-# Uncomment if using bridge network mode
-# networks:
-#   ha-network:
-#     driver: bridge
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: ha-test-runner
+    volumes:
+      - ./test:/tests:ro
+      - ./config:/config  # Read-write so tests can clean config
+      - ./custom_components:/config/custom_components:ro
+      - .:/workspace  # Read-write so test can write output file
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    network_mode: host
+    shm_size: 2gb  # Increase shared memory for Chrome
+    environment:
+      - HA_URL=http://localhost:8123
+      - DBUS_SESSION_BUS_ADDRESS=/dev/null  # Fix ChromeDriver hangs
+      # SELENIUM_HUB_URL optional - if not set, uses local chromium
+    working_dir: /workspace
+
+  # Selenium optional - only needed if you want remote selenium hub
+  # Uncomment if you have AMD64 platform and want to use selenium container
+  # selenium:
+  #   image: "selenium/standalone-chrome:latest"
+  #   container_name: ha-test-selenium
+  #   network_mode: host
+  #   shm_size: 2gb
+  #   platform: linux/amd64

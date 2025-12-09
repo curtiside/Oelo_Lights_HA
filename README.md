@@ -4,9 +4,13 @@
 
 Control Oelo Lights from Home Assistant. Multi-zone control, effect capture/storage/management, spotlight plan support.
 
-**Documentation:** All documentation is inline in code files. See module docstrings:
+## Documentation
+
+All documentation is inline in code files. Read module docstrings:
+
 ```bash
 head -200 custom_components/oelo_lights/__init__.py
+head -200 custom_components/oelo_lights/config_flow.py
 head -200 custom_components/oelo_lights/services.py
 ```
 

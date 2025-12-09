@@ -1,7 +1,41 @@
 """Config flow for Oelo Lights integration.
 
-Handles initial setup (IP validation) and options flow (zones, polling, spotlight,
-verification, advanced settings).
+Handles initial setup (IP validation) and multi-step options flow.
+
+Config Flow Steps:
+- user: Initial setup - IP address entry and validation
+- reconfigure: Reconfigure existing controller IP address
+- Options flow (multi-step):
+  - init: Basic settings (zones, polling)
+  - spotlight: Spotlight plan settings (LED indices, max LEDs)
+  - verification: Command verification settings
+  - advanced: Advanced settings (timeouts, debug logging)
+
+IP Validation:
+- Format check (IPv4)
+- Connection test to /getController endpoint
+- Response validation (JSON array expected)
+
+Options Flow:
+Multi-step flow organized by category. Each step collects related settings:
+1. Basic: Zones (multi-select), poll interval, auto poll
+2. Spotlight: Max LEDs, spotlight plan lights (comma-delimited LED indices)
+3. Verification: Verify commands toggle, retries, delay, timeout
+4. Advanced: Command timeout, debug logging
+
+Example Usage:
+    # Initial setup via UI:
+    Settings → Devices & Services → Add Integration → oelo_lights_ha
+    # Enter IP address → Submit
+    
+    # Configure options:
+    Settings → Devices & Services → oelo_lights_ha → Configure
+    # Follow multi-step wizard
+
+Troubleshooting:
+- Invalid IP: Check format (IPv4), ensure controller is online
+- Cannot connect: Verify network connectivity, firewall rules, controller on same network
+- Options not saving: Ensure all steps completed, check logs for errors
 """
 
 from __future__ import annotations
@@ -49,16 +83,38 @@ from .pattern_utils import normalize_led_indices
 _LOGGER = logging.getLogger(__name__)
 
 class CannotConnect(Exception):
-    """Exception raised when a connection to the device cannot be established."""
+    """Exception raised when connection to device cannot be established."""
     pass
 
 class InvalidIP(Exception):
-    """Exception raised for invalid IP format."""
+    """Exception raised for invalid IP address format."""
     pass
 
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, str]:
-    """Validate user input allows us to connect."""
+    """Validate user input allows us to connect.
+    
+    Validates IP address format and tests connection to controller.
+    
+    Args:
+        hass: Home Assistant instance
+        data: User input dict containing CONF_IP_ADDRESS
+        
+    Returns:
+        Dict with "title" key for config entry
+        
+    Raises:
+        InvalidIP: IP format invalid or missing
+        CannotConnect: Connection failed or device not Oelo controller
+        
+    Example:
+        try:
+            info = await validate_input(hass, {"ip_address": "192.168.1.100"})
+        except InvalidIP:
+            # Handle invalid IP
+        except CannotConnect:
+            # Handle connection failure
+    """
 
     ip = data.get(CONF_IP_ADDRESS)
     if not ip:
@@ -116,14 +172,24 @@ STEP_USER_DATA_SCHEMA = vol.Schema({
 })
 
 class OeloLightsConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Oelo Lights."""
+    """Handle config flow for Oelo Lights integration.
+    
+    Manages initial setup and reconfiguration flows.
+    """
 
     VERSION = 1
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        """Get the options flow for this handler."""
+        """Get options flow handler.
+        
+        Args:
+            config_entry: Configuration entry to configure
+            
+        Returns:
+            OptionsFlowHandler instance
+        """
         return OeloLightsOptionsFlowHandler(config_entry)
 
     async def async_step_user(
@@ -237,41 +303,69 @@ class OeloLightsConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class OeloLightsOptionsFlowHandler(OptionsFlow):
-    """Handle options flow for Oelo Lights."""
+    """Handle multi-step options flow for Oelo Lights.
+    
+    Organizes settings into logical steps: Basic → Spotlight → Verification → Advanced.
+    """
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow."""
+        """Initialize options flow.
+        
+        Args:
+            config_entry: Configuration entry being configured
+        """
         super().__init__()
         self._config_entry = config_entry
+        self._options: dict[str, Any] = {}
     
     @property
     def config_entry(self) -> ConfigEntry:
-        """Return the config entry."""
+        """Return config entry."""
         return self._config_entry
+
+    def _get_spotlight_plan_lights_display(self, lights_str: str, max_leds: int = DEFAULT_MAX_LEDS) -> str:
+        """Format spotlight plan lights for display.
+        
+        Normalizes and formats LED indices string. Truncates long lists.
+        
+        Args:
+            lights_str: Comma-delimited LED indices string
+            max_leds: Maximum LEDs for validation
+            
+        Returns:
+            Formatted display string (e.g., "1,2,3,4" or "1,2,3,...,40 total")
+        """
+        if not lights_str:
+            return "None"
+        normalized = normalize_led_indices(lights_str, max_leds)
+        if not normalized:
+            return "None"
+        indices = normalized.split(",")
+        if len(indices) <= 10:
+            return normalized
+        return f"{','.join(indices[:10])},... ({len(indices)} total)"
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Basic settings step: zones, polling.
+        
+        Collects: zones (multi-select), poll interval, auto poll.
+        Proceeds to spotlight step on submit.
+        """
         if user_input is not None:
+            self._options.update(user_input)
             # Convert zone strings to integers
             if CONF_ZONES in user_input:
                 zones = user_input[CONF_ZONES]
                 if isinstance(zones, list):
-                    user_input[CONF_ZONES] = [int(z) for z in zones if str(z).isdigit()]
+                    self._options[CONF_ZONES] = [int(z) for z in zones if str(z).isdigit()]
                 elif isinstance(zones, str) and zones.isdigit():
-                    user_input[CONF_ZONES] = [int(zones)]
-            
-            # Normalize spotlight plan lights
-            if CONF_SPOTLIGHT_PLAN_LIGHTS in user_input:
-                max_leds = user_input.get(CONF_MAX_LEDS, options.get(CONF_MAX_LEDS, DEFAULT_MAX_LEDS))
-                spotlight_lights_raw = user_input[CONF_SPOTLIGHT_PLAN_LIGHTS]
-                if spotlight_lights_raw:
-                    user_input[CONF_SPOTLIGHT_PLAN_LIGHTS] = normalize_led_indices(spotlight_lights_raw, max_leds)
-            
-            return self.async_create_entry(title="", data=user_input)
+                    self._options[CONF_ZONES] = [int(zones)]
+            return await self.async_step_spotlight()
 
         options = self.config_entry.options
+        self._options = dict(options)
         
         # Convert zones to strings for multi_select
         current_zones = options.get(CONF_ZONES, DEFAULT_ZONES)
@@ -293,22 +387,68 @@ class OeloLightsOptionsFlowHandler(OptionsFlow):
                 CONF_AUTO_POLL,
                 default=options.get(CONF_AUTO_POLL, DEFAULT_AUTO_POLL),
             ): bool,
-            vol.Optional(
-                CONF_COMMAND_TIMEOUT,
-                default=options.get(CONF_COMMAND_TIMEOUT, DEFAULT_COMMAND_TIMEOUT),
-            ): vol.All(vol.Coerce(int), vol.Range(min=5, max=30)),
-            vol.Optional(
-                CONF_DEBUG_LOGGING,
-                default=options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
-            ): bool,
+        })
+
+        return self.async_show_form(step_id="init", data_schema=data_schema)
+
+    async def async_step_spotlight(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Spotlight plan settings step: LED indices, max LEDs.
+        
+        Collects: max LEDs per zone, spotlight plan lights (comma-delimited).
+        Normalizes LED indices on submit. Proceeds to verification step.
+        """
+        if user_input is not None:
+            self._options.update(user_input)
+            # Normalize spotlight plan lights
+            if CONF_SPOTLIGHT_PLAN_LIGHTS in user_input:
+                max_leds = user_input.get(CONF_MAX_LEDS, self._options.get(CONF_MAX_LEDS, DEFAULT_MAX_LEDS))
+                spotlight_lights_raw = user_input[CONF_SPOTLIGHT_PLAN_LIGHTS]
+                if spotlight_lights_raw:
+                    self._options[CONF_SPOTLIGHT_PLAN_LIGHTS] = normalize_led_indices(spotlight_lights_raw, max_leds)
+                else:
+                    self._options[CONF_SPOTLIGHT_PLAN_LIGHTS] = ""
+            return await self.async_step_verification()
+
+        options = self._options if self._options else self.config_entry.options
+        
+        spotlight_lights = options.get(CONF_SPOTLIGHT_PLAN_LIGHTS, DEFAULT_SPOTLIGHT_PLAN_LIGHTS)
+        max_leds = options.get(CONF_MAX_LEDS, DEFAULT_MAX_LEDS)
+        spotlight_display = self._get_spotlight_plan_lights_display(spotlight_lights, max_leds)
+        
+        data_schema = vol.Schema({
             vol.Optional(
                 CONF_MAX_LEDS,
                 default=options.get(CONF_MAX_LEDS, DEFAULT_MAX_LEDS),
             ): vol.All(vol.Coerce(int), vol.Range(min=1, max=500)),
             vol.Optional(
                 CONF_SPOTLIGHT_PLAN_LIGHTS,
-                default=options.get(CONF_SPOTLIGHT_PLAN_LIGHTS, DEFAULT_SPOTLIGHT_PLAN_LIGHTS),
+                default=spotlight_lights,
             ): str,
+        })
+
+        return self.async_show_form(
+            step_id="spotlight",
+            data_schema=data_schema,
+            description_placeholders={"current_lights": spotlight_display}
+        )
+
+    async def async_step_verification(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Command verification settings step.
+        
+        Collects: verify commands toggle, retries, delay, timeout.
+        Proceeds to advanced step on submit.
+        """
+        if user_input is not None:
+            self._options.update(user_input)
+            return await self.async_step_advanced()
+
+        options = self._options if self._options else self.config_entry.options
+        
+        data_schema = vol.Schema({
             vol.Optional(
                 CONF_VERIFY_COMMANDS,
                 default=options.get(CONF_VERIFY_COMMANDS, DEFAULT_VERIFY_COMMANDS),
@@ -327,4 +467,32 @@ class OeloLightsOptionsFlowHandler(OptionsFlow):
             ): vol.All(vol.Coerce(int), vol.Range(min=10, max=120)),
         })
 
-        return self.async_show_form(step_id="init", data_schema=data_schema)
+        return self.async_show_form(step_id="verification", data_schema=data_schema)
+
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Advanced settings step: timeouts, debug logging.
+        
+        Collects: command timeout, debug logging toggle.
+        Saves all options and completes flow on submit.
+        """
+        if user_input is not None:
+            self._options.update(user_input)
+            # Save all options
+            return self.async_create_entry(title="", data=self._options)
+
+        options = self._options if self._options else self.config_entry.options
+        
+        data_schema = vol.Schema({
+            vol.Optional(
+                CONF_COMMAND_TIMEOUT,
+                default=options.get(CONF_COMMAND_TIMEOUT, DEFAULT_COMMAND_TIMEOUT),
+            ): vol.All(vol.Coerce(int), vol.Range(min=5, max=30)),
+            vol.Optional(
+                CONF_DEBUG_LOGGING,
+                default=options.get(CONF_DEBUG_LOGGING, DEFAULT_DEBUG_LOGGING),
+            ): bool,
+        })
+
+        return self.async_show_form(step_id="advanced", data_schema=data_schema)
