@@ -103,31 +103,8 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
         resource_url = "/local/oelo-patterns-card-simple.js"
         resource_type = "module"
         
-        # Method 1: Use ResourceStorage API
-        try:
-            from homeassistant.components.lovelace.resources import ResourceStorage
-            resources = ResourceStorage(hass)
-            
-            # Check if resource already exists
-            existing_resources = await resources.async_get_info()
-            resource_exists = any(
-                res.get("url") == resource_url for res in existing_resources
-            )
-            
-            if not resource_exists:
-                result = await resources.async_create_item({
-                    "type": resource_type,
-                    "url": resource_url,
-                })
-                _LOGGER.info("✓ Lovelace card resource registered automatically: %s", result)
-                return
-            else:
-                _LOGGER.info("Lovelace card resource already registered")
-                return
-        except Exception as e:
-            _LOGGER.warning("ResourceStorage method failed: %s", e, exc_info=True)
-        
-        # Method 2: Use frontend component to load globally (works without resource registration)
+        # Method 1: Use frontend component to load globally (works without resource registration)
+        # Note: ResourceStorage API was deprecated in HA 2025.12, using frontend method instead
         try:
             # This loads the JS globally, making the card available without manual resource addition
             from homeassistant.components.frontend import add_extra_js_url
@@ -141,8 +118,8 @@ async def _register_lovelace_resource(hass: HomeAssistant) -> None:
             _LOGGER.warning("Frontend component method failed: %s", e, exc_info=True)
         
         # If all methods fail, log instructions with full error details
-        _LOGGER.error("Could not auto-register Lovelace resource after trying all methods. Add manually: Settings → Dashboards → Resources → URL: %s, Type: %s", resource_url, resource_type)
-        _LOGGER.error("This is required for the pattern management card to work. Check logs above for specific errors.")
+        _LOGGER.warning("Could not auto-register Lovelace resource. Add manually: Settings → Dashboards → Resources → URL: %s, Type: %s", resource_url, resource_type)
+        _LOGGER.warning("This is required for the pattern management card to work. The card file is available at %s", resource_url)
             
     except ImportError as e:
         _LOGGER.error("Lovelace API not available: %s. Add resource manually: Settings → Dashboards → Resources", e, exc_info=True)

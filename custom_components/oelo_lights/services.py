@@ -376,4 +376,14 @@ def async_register_services(hass: HomeAssistant) -> None:
         }),
     )
     
+    # Register alias for backward compatibility (card uses list_patterns)
+    hass.services.async_register(
+        DOMAIN,
+        "list_patterns",
+        async_list_patterns,
+        schema=vol.Schema({
+            vol.Required("entity_id"): str,
+        }),
+    )
+    
     _LOGGER.info("Registered Oelo Lights services")
