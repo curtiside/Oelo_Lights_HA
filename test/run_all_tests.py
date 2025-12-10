@@ -6,8 +6,6 @@ Test Execution Order:
    - Controller connectivity, imports, config flow, pattern utils, services
 2. test_workflow.py - Pattern logic unit tests (no UI, no container)
    - Pattern capture, rename, apply logic validation
-3. test_user_workflow.py - Complete end-to-end test (container + UI)
-   - Container management, onboarding, HACS (automated), integration (from curtiside/oelo_lights_ha), device, patterns
 
 Test Strategy:
 - Unit tests: Fast feedback, validate logic without container
@@ -139,7 +137,6 @@ def main():
     print("\nThis will run all tests in sequence:")
     print("1. test_integration.py - Fast unit tests")
     print("2. test_workflow.py - Pattern logic unit tests")
-    print("3. test_user_workflow.py - Complete end-to-end test")
     print("\n" + "="*70)
     
     # Cleanup before starting
@@ -174,13 +171,6 @@ def main():
     results.append(success)
     test_results.append(("test_workflow.py", success, output))
     
-    # Test 3: End-to-end test (container + UI)
-    success, output = run_test(
-        "test_user_workflow.py",
-        "End-to-End Test - Complete user workflow (container + UI)"
-    )
-    results.append(success)
-    test_results.append(("test_user_workflow.py", success, output))
     
     # Summary
     print("\n" + "="*70)

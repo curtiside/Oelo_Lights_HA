@@ -167,9 +167,9 @@ make setup
 make build
 ```
 
-This builds the test runner container with all dependencies (Selenium, ChromeDriver, Python packages). 
+This builds the test runner container with all dependencies (Python packages). 
 
-**Note:** `make test-all` will automatically build the test container if it doesn't exist, but it's recommended to run `make build` explicitly first to ensure it's up-to-date. You only need to rebuild if you modify `test/Dockerfile.test` or need to update dependencies.
+**Note:** `make test-all` will automatically build the test container if it doesn't exist, but it's recommended to run `make build` explicitly first to ensure it's up-to-date.
 
 ### Environment Variables
 
@@ -206,11 +206,6 @@ HA_PASSWORD=test_password_123         # Password (tests auto-create token)
    - Test core logic
    - If using API: Auto-creates token from `HA_USERNAME`/`HA_PASSWORD` if `HA_TOKEN` not provided
 
-2. **Integration Tests** (`test_user_workflow.py`)
-   - Requires running HA
-   - Primarily UI-based (Selenium), doesn't require tokens
-   - Tests device configuration via UI
-   - Tests pattern workflow via UI
 
 ### Running Tests
 
@@ -233,34 +228,6 @@ python3 test/test_workflow.py
 ```
 
 **Run integration tests (requires HA):**
-```bash
-python3 test/test_user_workflow.py \
-  --ha-url http://localhost:8123 \
-  --ha-token $HA_TOKEN \
-  --controller-ip 10.16.52.41 \
-  [--skip-patterns] \
-  [--keep-container]
-```
-
-**Watch browser during tests:**
-```bash
-# Terminal 1: Run tests
-make test-all
-
-# Terminal 2: Watch browser (auto-opens Chrome DevTools)
-make watch
-
-# Or with custom options
-python3 test/watch_browser.py --interval 0.5 --screenshots --open-devtools
-```
-
-**Run with command-line args:**
-```bash
-python3 test/test_user_workflow.py \
-  --ha-url http://localhost:8123 \
-  --ha-token <token> \
-  --controller-ip 10.16.52.41
-```
 
 ## Test Structure
 
@@ -269,7 +236,6 @@ All test files and test infrastructure in `test/` directory. See inline document
 ```bash
 head -100 test/test_integration.py
 head -100 test/test_workflow.py
-head -100 test/test_user_workflow.py
 head -100 test/test_helpers.py
 ```
 
@@ -282,27 +248,16 @@ head -100 test/test_helpers.py
 - **test_workflow.py** - Pattern logic unit tests (no UI, no container)
   - Pattern capture/rename/apply logic validation
 
-- **test_user_workflow.py** - Complete end-to-end test (container + UI)
-  - Container management, onboarding, HACS installation (automated via Docker), integration installation (from curtiside/oelo_lights_ha), device configuration, pattern workflow
-
 - **test_helpers.py** - Shared helper functions
-  - Container management, HA readiness checks, browser automation, UI interactions
+  - Container management, HA readiness checks, API access
 
 - **run_all_tests.py** - Master test runner
   - Executes all tests in correct order
 
 **Test Infrastructure:**
-- **Dockerfile.test** - Test runner container image
-- **setup_automated.sh** - Automated setup script
-- **setup_with_browser.py** - Browser-based setup helper
 - **create_token.py** - Create HA access token helper
-- **create_token_browser.py** - Browser-based token creation
-- **install_chromedriver.sh** - ChromeDriver installation script
-
 **Test Utilities:**
-- **test_add_card.py** - Card addition test
-- **test_full_setup.py** - Full setup test
-- **run_full_ui_tests.py** - Full UI test suite
+- **test_add_card.py** - Card addition test (API-based)
 
 **Test Output Files** (gitignored, created during test runs):
 - `test_output.log` - Test execution log
@@ -399,7 +354,7 @@ make test-all         # Run tests
 make test-all         # Tests are mounted, no rebuild needed
 ```
 
-**3. Dockerfile changes** (`test/Dockerfile.test`):
+**3. Code changes:**
 ```bash
 make build            # Rebuild test container
 make test-all         # Run tests
@@ -410,7 +365,7 @@ make test-all         # Run tests
 make restart          # Restart HA (if code changed)
 python3 test/run_all_tests.py  # Or run specific test
 # OR with skip flags:
-docker-compose run --rm test python3 -u /tests/test_user_workflow.py --skip-hacs --skip-patterns
+python3 test/run_all_tests.py
 ```
 
 **Note:** 
@@ -469,76 +424,11 @@ See `make help` for all available commands.
 - `make test` - Quick test (setup, start, check logs)
 - `make test-all` - Run all tests
 
-### Viewing Browser During Tests
-
-There are several ways to see what's happening in the browser during test execution:
-
-### Option 1: Automated Browser Monitor (Easiest)
-
-Use the `watch_browser.py` script to automatically monitor the browser:
 
 ```bash
 # Terminal 1: Run tests
 make test-all
 
-# Terminal 2: Watch browser (auto-opens Chrome DevTools)
-make watch
-```
-
-The script will:
-- Automatically detect when Chrome remote debugging is available
-- Show browser tabs, URLs, and titles in real-time
-- Optionally open Chrome DevTools automatically
-- Optionally take screenshots at state changes
-
-**Manual Chrome Remote Debugging:**
-
-If you prefer manual connection:
-
-1. **Start the test** (it will run in headless mode):
-   ```bash
-   make test-all
-   ```
-
-2. **Open Chrome** on your host machine and navigate to:
-   ```
-   chrome://inspect
-   ```
-
-3. **Click "Open dedicated DevTools for Node"** or look for the remote target under "Remote Target"
-
-4. You'll see the browser window and can interact with it in real-time
-
-**Note:** The test container exposes port 9222, so Chrome on your host can connect to `localhost:9222`.
-
-### Option 2: Non-Headless Mode with Screenshots
-
-Run the test with browser visible and take screenshots:
-
-```bash
-# Run test with visible browser (requires Xvfb in container)
-docker-compose run --rm test python3 -u /tests/test_user_workflow.py --no-headless --screenshots --skip-hacs --skip-patterns
-
-# Screenshots will be saved to test/screenshot_*.png
-```
-
-**Note:** Non-headless mode requires Xvfb (already installed in test container). The browser runs in a virtual display that you can't directly see, but screenshots capture the state.
-
-### Option 3: Screenshots Only (Headless)
-
-Take screenshots without running in non-headless mode:
-
-```bash
-docker-compose run --rm test python3 -u /tests/test_user_workflow.py --screenshots --skip-hacs --skip-patterns
-```
-
-Screenshots are saved to `test/screenshot_*.png` at key test steps (e.g., after login).
-
-### Troubleshooting Browser Viewing
-
-- **Chrome remote debugging not showing targets**: Ensure port 9222 is accessible and the test is running
-- **Non-headless mode fails**: Xvfb should start automatically, but check container logs if issues occur
-- **Screenshots not saving**: Check that `/workspace/test/` is writable in the container
 
 ## Cleanup When Done Testing
 
@@ -584,7 +474,6 @@ make build
 
 **When to run `make build`:**
 - **First time setup** - Builds the test container image (required before running tests)
-- **After modifying `test/Dockerfile.test`** - Rebuilds with your changes
 - **After updating dependencies** - If you change Python packages or system packages in Dockerfile
 - **If test container was removed** - Docker Compose will auto-build on first run, but explicit build ensures it's up-to-date
 
@@ -783,10 +672,8 @@ head -200 test/test_helpers.py
   - `test_*.py` - Core test scripts
   - `test_helpers.py` - Shared test utilities
   - `run_all_tests.py` - Master test runner
-  - `Dockerfile.test` - Test runner container image
   - `setup_*.sh`, `setup_*.py` - Setup scripts
   - `create_token*.py` - Token creation helpers
-  - `install_chromedriver.sh` - ChromeDriver installer
   - `REFACTORING_PLAN.md` - Test refactoring documentation
   - `test_output.log` - Test execution log (gitignored)
   - `onboarding_*` - Diagnostic files (gitignored, created during runs)

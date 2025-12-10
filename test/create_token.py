@@ -55,7 +55,7 @@ async def create_token_via_websocket() -> str | None:
 if __name__ == "__main__":
     print("Note: Token creation requires authentication.")
     print("For a fresh install, complete onboarding/login first via browser.")
-    print("Then create token manually or use browser automation.")
+    print("Then create token manually.")
     token = asyncio.run(create_token_via_websocket())
     if token:
         print(f"Token created: {token}")

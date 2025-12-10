@@ -24,7 +24,7 @@ Configuration:
         HA_URL: Home Assistant URL (default: http://localhost:8123)
 
 These are fast unit tests that validate integration logic without requiring
-full HA setup. For end-to-end testing, see test_user_workflow.py.
+full HA setup.
 
 See DEVELOPER.md for complete testing architecture.
 """
